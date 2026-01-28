@@ -23,9 +23,10 @@ class RedeemFlowService:
 
     def __init__(self):
         """初始化兑换流程服务"""
+        from app.services.chatgpt import chatgpt_service
         self.redemption_service = RedemptionService()
         self.team_service = TeamService()
-        self.chatgpt_service = ChatGPTService()
+        self.chatgpt_service = chatgpt_service
 
     async def verify_code_and_get_teams(
         self,

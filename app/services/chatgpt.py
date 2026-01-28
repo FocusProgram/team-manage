@@ -502,6 +502,10 @@ class ChatGPTService:
             self.session = None
             logger.info("HTTP 会话已关闭")
 
+    async def clear_session(self):
+        """清理当前会话 (别名,用于语义化调用)"""
+        await self.close()
+
 
 # 创建全局实例
 chatgpt_service = ChatGPTService()

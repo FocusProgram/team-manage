@@ -25,8 +25,9 @@
         <div class="form-group">
             <label for="proxyUrl">代理地址</label>
             <input type="text" id="proxyUrl" name="proxy" value="{{ proxy or '' }}"
-                placeholder="http://127.0.0.1:7890 或 socks5://127.0.0.1:1080" class="form-control">
-            <p class="form-help">支持HTTP和SOCKS5代理,格式: http://host:port 或 socks5://host:port</p>
+                placeholder="http://127.0.0.1:7890, socks5://127.0.0.1:1080 或 socks5h://127.0.0.1:1080"
+                class="form-control">
+            <p class="form-help">支持HTTP、SOCKS5和SOCKS5H (远程DNS解析) 代理</p>
         </div>
 
         <button type="submit" class="btn btn-primary">保存代理配置</button>

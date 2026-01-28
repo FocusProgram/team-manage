@@ -24,7 +24,8 @@ class TeamService:
 
     def __init__(self):
         """初始化 Team 管理服务"""
-        self.chatgpt_service = ChatGPTService()
+        from app.services.chatgpt import chatgpt_service
+        self.chatgpt_service = chatgpt_service
         self.token_parser = TokenParser()
         self.jwt_parser = JWTParser()
 

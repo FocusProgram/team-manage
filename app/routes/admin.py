@@ -958,12 +958,12 @@ async def update_proxy_config(
         # 验证代理地址格式
         if proxy_data.enabled and proxy_data.proxy:
             proxy = proxy_data.proxy.strip()
-            if not (proxy.startswith("http://") or proxy.startswith("https://") or proxy.startswith("socks5://")):
+            if not (proxy.startswith("http://") or proxy.startswith("https://") or proxy.startswith("socks5://") or proxy.startswith("socks5h://")):
                 return JSONResponse(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     content={
                         "success": False,
-                        "error": "代理地址格式错误,应为 http://host:port 或 socks5://host:port"
+                        "error": "代理地址格式错误,应为 http://host:port, socks5://host:port 或 socks5h://host:port"
                     }
                 )
 
@@ -975,6 +975,10 @@ async def update_proxy_config(
         )
 
         if success:
+            # 清理 ChatGPT 服务的会话,确保下次请求使用新代理
+            from app.services.chatgpt import chatgpt_service
+            await chatgpt_service.clear_session()
+            
             return JSONResponse(content={"success": True, "message": "代理配置已保存"})
         else:
             return JSONResponse(
