@@ -64,3 +64,6 @@ nul
 CLAUDE.md
 openai-api.md
 .gitignore
+
+# DB
+team_manage*

@@ -2,6 +2,22 @@
  * GPT Team 管理系统 - 通用 JavaScript
  */
 
+const adminBaseAttr = document.body && document.body.dataset ? document.body.dataset.adminBase : '';
+const loginPathAttr = document.body && document.body.dataset ? document.body.dataset.loginPath : '';
+const ADMIN_PREFIX = (adminBaseAttr || '/admin').replace(/\/$/, '');
+const LOGIN_PATH = (loginPathAttr || '/login').replace(/\/$/, '');
+function adminPath(path = '') {
+    if (!path) return ADMIN_PREFIX;
+    return `${ADMIN_PREFIX}${path.startsWith('/') ? path : `/${path}`}`;
+}
+function isAdminPath(pathname) {
+    return pathname === ADMIN_PREFIX || pathname.startsWith(`${ADMIN_PREFIX}/`);
+}
+function isLoginPath(pathname) {
+    return pathname === LOGIN_PATH || pathname === `${LOGIN_PATH}/`;
+}
+window.adminPath = adminPath;
+
 // Toast 提示函数
 function showToast(message, type = 'info') {
     const toast = document.getElementById('toast');
@@ -54,7 +70,7 @@ async function logout() {
         const data = await response.json();
 
         if (response.ok && data.success) {
-            window.location.href = '/login';
+            window.location.href = LOGIN_PATH;
         } else {
             showToast('登出失败', 'error');
         }
@@ -100,7 +116,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // 检查认证状态
 async function checkAuthStatus() {
     // 如果在登录页面,跳过检查
-    if (window.location.pathname === '/login') {
+    if (isLoginPath(window.location.pathname)) {
         return;
     }
 
@@ -108,9 +124,9 @@ async function checkAuthStatus() {
         const response = await fetch('/auth/status');
         const data = await response.json();
 
-        if (!data.authenticated && window.location.pathname.startsWith('/admin')) {
+        if (!data.authenticated && isAdminPath(window.location.pathname)) {
             // 未登录且在管理员页面,跳转到登录页
-            window.location.href = '/login';
+            window.location.href = LOGIN_PATH;
         }
     } catch (error) {
         console.error('检查认证状态失败:', error);
@@ -174,7 +190,7 @@ async function handleSingleImport(event) {
     submitButton.textContent = '导入中...';
 
     try {
-        const result = await apiCall('/admin/teams/import', {
+        const result = await apiCall(adminPath('teams/import'), {
             method: 'POST',
             body: JSON.stringify({
                 import_type: 'single',
@@ -211,7 +227,7 @@ async function handleBatchImport(event) {
     submitButton.textContent = '导入中...';
 
     try {
-        const result = await apiCall('/admin/teams/import', {
+        const result = await apiCall(adminPath('teams/import'), {
             method: 'POST',
             body: JSON.stringify({
                 import_type: 'batch',
@@ -269,7 +285,7 @@ async function generateSingle(event) {
     if (customCode) data.code = customCode;
     if (expiresDays) data.expires_days = parseInt(expiresDays);
 
-    const result = await apiCall('/admin/codes/generate', {
+    const result = await apiCall(adminPath('codes/generate'), {
         method: 'POST',
         body: JSON.stringify(data)
     });
@@ -280,7 +296,7 @@ async function generateSingle(event) {
         form.reset();
         showToast('兑换码生成成功', 'success');
         // 如果在列表中，延迟刷新
-        if (window.location.pathname === '/admin/codes') {
+        if (window.location.pathname === adminPath('codes')) {
             setTimeout(() => location.reload(), 2000);
         }
     } else {
@@ -302,7 +318,7 @@ async function generateBatch(event) {
     const data = { type: 'batch', count: count };
     if (expiresDays) data.expires_days = parseInt(expiresDays);
 
-    const result = await apiCall('/admin/codes/generate', {
+    const result = await apiCall(adminPath('codes/generate'), {
         method: 'POST',
         body: JSON.stringify(data)
     });
@@ -313,7 +329,7 @@ async function generateBatch(event) {
         document.getElementById('batchResult').style.display = 'block';
         form.reset();
         showToast(`成功生成 ${result.data.total} 个兑换码`, 'success');
-        if (window.location.pathname === '/admin/codes') {
+        if (window.location.pathname === adminPath('codes')) {
             setTimeout(() => location.reload(), 3000);
         }
     } else {
@@ -425,7 +441,7 @@ async function loadModalMemberList(teamId) {
     if (invitedTableBody) invitedTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem;">加载中...</td></tr>';
 
     try {
-        const result = await apiCall(`/admin/teams/${teamId}/members/list`);
+        const result = await apiCall(adminPath(`/teams/${teamId}/members/list`));
         if (result.success) {
             const allMembers = result.data.members || [];
             const joinedMembers = allMembers.filter(m => m.status === 'joined');
@@ -499,7 +515,7 @@ async function revokeInvite(teamId, email, inModal = false) {
 
     try {
         showToast('正在撤回...', 'info');
-        const result = await apiCall(`/admin/teams/${teamId}/invites/revoke`, {
+        const result = await apiCall(adminPath(`/teams/${teamId}/invites/revoke`), {
             method: 'POST',
             body: JSON.stringify({ email: email })
         });
@@ -536,7 +552,7 @@ async function handleAddMember(event) {
     submitButton.textContent = '添加中...';
 
     try {
-        const result = await apiCall(`/admin/teams/${teamId}/members/add`, {
+        const result = await apiCall(adminPath(`/teams/${teamId}/members/add`), {
             method: 'POST',
             body: JSON.stringify({ email })
         });
@@ -568,7 +584,7 @@ async function deleteMember(teamId, userId, email, inModal = false) {
 
     try {
         showToast('正在删除...', 'info');
-        const result = await apiCall(`/admin/teams/${teamId}/members/${userId}/delete`, {
+        const result = await apiCall(adminPath(`/teams/${teamId}/members/${userId}/delete`), {
             method: 'POST'
         });
 

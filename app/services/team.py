@@ -987,6 +987,28 @@ class TeamService:
             logger.error(f"获取剩余车位失败: {e}")
             return 0
 
+    async def get_total_teams(
+        self,
+        db_session: AsyncSession
+    ) -> int:
+        """
+        获取当前 Team 总数
+
+        Args:
+            db_session: 数据库会话
+
+        Returns:
+            Team 总数
+        """
+        try:
+            stmt = select(func.count(Team.id))
+            result = await db_session.execute(stmt)
+            total = result.scalar() or 0
+            return int(total)
+        except Exception as e:
+            logger.error(f"获取 Team 总数失败: {e}")
+            return 0
+
 
 
     async def get_team_by_id(

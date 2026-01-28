@@ -138,7 +138,7 @@
         }
 
         try {
-            const response = await fetch('/admin/settings/proxy', {
+            const response = await fetch('{{ admin_path }}/settings/proxy', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -194,7 +194,7 @@
             if (response.ok && data.success) {
                 showToast('密码修改成功,即将跳转到登录页', 'success');
                 setTimeout(() => {
-                    window.location.href = '/login';
+                    window.location.href = '{{ admin_login_path }}';
                 }, 2000);
             } else {
                 showToast(data.error || '修改失败', 'error');
@@ -211,7 +211,7 @@
         const level = document.getElementById('logLevel').value;
 
         try {
-            const response = await fetch('/admin/settings/log-level', {
+            const response = await fetch('{{ admin_path }}/settings/log-level', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

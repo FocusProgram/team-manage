@@ -33,10 +33,12 @@ async def redeem_page(
     """
     try:
         from app.main import templates
+        from app.config import settings
         from app.services.team import TeamService
         
         team_service = TeamService()
         remaining_spots = await team_service.get_total_available_spots(db)
+        total_teams = await team_service.get_total_teams(db)
 
         logger.info(f"用户访问兑换页面，剩余车位: {remaining_spots}")
 
@@ -44,7 +46,10 @@ async def redeem_page(
             "user/redeem.html",
             {
                 "request": request,
-                "remaining_spots": remaining_spots
+                "remaining_spots": remaining_spots,
+                "total_teams": total_teams,
+                "oauth_user": request.session.get("oauth_user"),
+                "oauth_required": settings.oauth_required
             }
         )
 

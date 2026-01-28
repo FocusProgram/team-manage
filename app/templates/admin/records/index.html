@@ -45,7 +45,7 @@
         <h3><i data-lucide="search"></i> 搜索筛选</h3>
     </div>
 
-    <form method="get" action="/admin/records" class="search-form-grid">
+    <form method="get" action="{{ admin_path }}/records" class="search-form-grid">
         <div class="form-group">
             <label for="email">用户邮箱</label>
             <input type="text" id="email" name="email" value="{{ filters.email or '' }}" placeholder="输入邮箱搜索"
@@ -70,11 +70,11 @@
             <label for="end_date">结束日期</label>
             <input type="date" id="end_date" name="end_date" value="{{ filters.end_date or '' }}" class="form-control">
         </div>
-        <div class="form-actions" style="display: flex; gap: 0.5rem; align-items: flex-end;">
-            <button type="submit" class="btn btn-primary" style="flex: 1;">
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
                 <i data-lucide="search"></i> 搜索
             </button>
-            <a href="/admin/records" class="btn btn-secondary">
+            <a href="{{ admin_path }}/records" class="btn btn-secondary">
                 <i data-lucide="rotate-ccw"></i> 重置
             </a>
         </div>
@@ -156,48 +156,6 @@
 
 {% block extra_css %}
 <style>
-    .search-form {
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: var(--shadow);
-    }
-
-    .form-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-
-    .form-row:last-child {
-        margin-bottom: 0;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .form-group label {
-        font-size: 0.9rem;
-        font-weight: 500;
-        margin-bottom: 0.5rem;
-        color: var(--text-color);
-    }
-
-    .form-group input {
-        padding: 0.5rem;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        font-size: 0.9rem;
-    }
-
-    .form-group input:focus {
-        outline: none;
-        border-color: var(--primary-color);
-    }
-
     .record-info {
         font-size: 0.9rem;
         color: var(--secondary-color);

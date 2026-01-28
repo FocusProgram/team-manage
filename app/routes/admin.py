@@ -14,12 +14,13 @@ from app.dependencies.auth import require_admin
 from app.services.team import TeamService
 from app.services.redemption import RedemptionService
 from app.utils.time_utils import get_now
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 # 创建路由器
 router = APIRouter(
-    prefix="/admin",
+    prefix=settings.admin_path_normalized,
     tags=["admin"]
 )
 
@@ -1033,5 +1034,4 @@ async def update_log_level(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "error": f"更新失败: {str(e)}"}
         )
-
 

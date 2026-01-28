@@ -160,7 +160,7 @@
 
         try {
             showToast('正在删除...', 'info');
-            const response = await fetch(`/admin/teams/${teamId}/delete`, {
+            const response = await fetch(`{{ admin_path }}/teams/${teamId}/delete`, {
                 method: 'POST'
             });
 

@@ -3,12 +3,13 @@
 处理用户兑换码验证和加入 Team 的请求
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.config import settings
 from app.services.redeem_flow import redeem_flow_service
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ class RedeemResponse(BaseModel):
 @router.post("/verify", response_model=VerifyCodeResponse)
 async def verify_code(
     request: VerifyCodeRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -77,6 +79,9 @@ async def verify_code(
         验证结果和可用 Team 列表
     """
     try:
+        if settings.oauth_required and not http_request.session.get("oauth_user"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请先完成 Linux DO 登录")
+
         logger.info(f"验证兑换码请求: {request.code}")
 
         result = await redeem_flow_service.verify_code_and_get_teams(
@@ -111,6 +116,7 @@ async def verify_code(
 @router.post("/confirm", response_model=RedeemResponse)
 async def confirm_redeem(
     request: RedeemRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -124,6 +130,9 @@ async def confirm_redeem(
         兑换结果
     """
     try:
+        if settings.oauth_required and not http_request.session.get("oauth_user"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="请先完成 Linux DO 登录")
+
         logger.info(f"兑换请求: {request.email} -> Team {request.team_id} (兑换码: {request.code})")
 
         result = await redeem_flow_service.redeem_and_join_team(

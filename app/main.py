@@ -68,7 +68,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         # 检查是否是 HTML 请求
         accept = request.headers.get("accept", "")
         if "text/html" in accept:
-            return RedirectResponse(url="/login")
+            return RedirectResponse(url=settings.admin_login_path_normalized)
     
     # 默认返回 JSON 响应（FastAPI 的默认行为）
     return JSONResponse(
@@ -91,6 +91,8 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 
 # 配置模板引擎
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
+templates.env.globals["admin_path"] = settings.admin_path_normalized
+templates.env.globals["admin_login_path"] = settings.admin_login_path_normalized
 
 # 添加模板过滤器
 def format_datetime(dt):
@@ -141,7 +143,7 @@ app.include_router(admin.router)
 app.include_router(api.router)
 
 
-@app.get("/login", response_class=HTMLResponse)
+@app.get(settings.admin_login_path_normalized, response_class=HTMLResponse)
 async def login_page(request: Request):
     """登录页面"""
     return templates.TemplateResponse(

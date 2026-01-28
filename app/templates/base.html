@@ -5,13 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}GPT Team 管理系统{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ request.app.url_path_for('static', path='css/style.css') }}">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     {% block extra_css %}{% endblock %}
 </head>
 
-<body class="theme-premium-dark">
+<body class="theme-premium-dark" data-admin-base="{{ admin_path }}" data-login-path="{{ admin_login_path }}">
     {% if user %}
     <!-- 导航栏 -->
     <nav class="navbar">
@@ -32,25 +35,25 @@
         <aside class="sidebar">
             <ul class="sidebar-menu">
                 <li class="menu-item {% if active_page == 'dashboard' %}active{% endif %}">
-                    <a href="/admin">
+                    <a href="{{ admin_path }}/">
                         <span class="menu-icon" data-lucide="layout-dashboard"></span>
                         <span class="menu-text">控制台</span>
                     </a>
                 </li>
                 <li class="menu-item {% if active_page == 'codes' %}active{% endif %}">
-                    <a href="/admin/codes">
+                    <a href="{{ admin_path }}/codes">
                         <span class="menu-icon" data-lucide="ticket"></span>
                         <span class="menu-text">兑换码管理</span>
                     </a>
                 </li>
                 <li class="menu-item {% if active_page == 'records' %}active{% endif %}">
-                    <a href="/admin/records">
+                    <a href="{{ admin_path }}/records">
                         <span class="menu-icon" data-lucide="file-text"></span>
                         <span class="menu-text">使用记录</span>
                     </a>
                 </li>
                 <li class="menu-item {% if active_page == 'settings' %}active{% endif %}">
-                    <a href="/admin/settings">
+                    <a href="{{ admin_path }}/settings">
                         <span class="menu-icon" data-lucide="settings"></span>
                         <span class="menu-text">系统设置</span>
                     </a>
@@ -72,7 +75,10 @@
 
     <!-- 页脚 -->
     <footer class="footer">
-        <p>&copy; 2026 GPT Team 管理系统 v0.1.0</p>
+        <p>
+            &copy; 2026 GPT Team 管理系统 v0.1.0 ·
+            <a href="https://github.com/FocusProgram/team-manage" target="_blank" rel="noreferrer">GitHub</a>
+        </p>
     </footer>
 
     <!-- 导入 Team 模态框 -->
@@ -267,7 +273,7 @@
     </div>
     <div id="toast" class="toast"></div>
 
-    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+    <script src="{{ request.app.url_path_for('static', path='js/main.js') }}"></script>
     <script>
         lucide.createIcons();
     </script>

@@ -40,7 +40,7 @@
 </div>
 
 <!-- 操作栏 -->
-<div class="section-header">
+<div class="section-header toolbar">
     <div class="filter-buttons">
         <button onclick="filterByStatus('all')" class="btn btn-sm btn-secondary active" id="filter-all">全部</button>
         <button onclick="filterByStatus('unused')" class="btn btn-sm btn-success" id="filter-unused">未使用</button>
@@ -152,7 +152,7 @@
         }
 
         try {
-            const response = await fetch(`/admin/codes/${encodeURIComponent(code)}/delete`, {
+            const response = await fetch(`{{ admin_path }}/codes/${encodeURIComponent(code)}/delete`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -179,7 +179,7 @@
     // 导出兑换码
     async function exportCodes() {
         try {
-            const response = await fetch('/admin/codes/export');
+            const response = await fetch('{{ admin_path }}/codes/export');
 
             if (response.ok) {
                 const blob = await response.blob();

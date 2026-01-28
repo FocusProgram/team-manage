@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8008
     debug: bool = True
+    admin_path: str = "/admin"
+    admin_login_path: str = "/login"
 
     # 数据库配置
     # 建议在 Docker 中使用 data 目录挂载，以避免文件挂载权限或类型问题
@@ -35,6 +37,16 @@ class Settings(BaseSettings):
     proxy: str = ""
     proxy_enabled: bool = False
 
+    # Linux DO Connect OAuth
+    linuxdo_client_id: str = ""
+    linuxdo_client_secret: str = ""
+    linuxdo_redirect_uri: str = "http://localhost:8008/auth/linuxdo/callback"
+    linuxdo_scope: str = "user"
+    linuxdo_auth_url: str = "https://connect.linux.do/oauth2/authorize"
+    linuxdo_token_url: str = "https://connect.linux.do/oauth2/token"
+    linuxdo_userinfo_url: str = "https://connect.linux.do/api/user"
+    oauth_required: bool = True
+
     # JWT 配置
     jwt_verify_signature: bool = False
 
@@ -47,6 +59,23 @@ class Settings(BaseSettings):
         case_sensitive=False
     )
 
+    @property
+    def admin_path_normalized(self) -> str:
+        return normalize_path(self.admin_path, "/admin")
+
+    @property
+    def admin_login_path_normalized(self) -> str:
+        return normalize_path(self.admin_login_path, "/login")
+
 
 # 创建全局配置实例
 settings = Settings()
+# 规范化路径
+def normalize_path(path: str, default: str) -> str:
+    raw = (path or "").strip()
+    if not raw:
+        return default
+    if not raw.startswith("/"):
+        raw = f"/{raw}"
+    raw = raw.rstrip("/")
+    return raw or default
