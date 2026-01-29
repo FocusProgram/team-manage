@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ request.app.url_path_for('static', path='css/user.css') }}">
+    <link rel="stylesheet" href="{{ request.app.url_path_for('static', path='css/user.css') }}?v={{ static_version }}">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -38,7 +38,9 @@
                     <i data-lucide="shield-check"></i>
                     {% if oauth_user.avatar_template %}
                     {% set avatar_url = oauth_user.avatar_template.replace('{size}', '64') %}
-                    <img class="oauth-avatar" src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ oauth_user.username or oauth_user.name }}">
+                    <img class="oauth-avatar" src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ oauth_user.username or oauth_user.name }}" onerror="this.onerror=null;this.src='{{ request.app.url_path_for('static', path='img/default-avatar.svg') }}?v={{ static_version }}';">
+                    {% else %}
+                    <img class="oauth-avatar" src="{{ request.app.url_path_for('static', path='img/default-avatar.svg') }}?v={{ static_version }}" alt="{{ oauth_user.username or oauth_user.name }}">
                     {% endif %}
                     已验证：{{ oauth_user.username or oauth_user.name }}
                 </a>
@@ -107,7 +109,7 @@
     <!-- Toast提示 -->
     <div id="toast" class="toast"></div>
 
-    <script src="{{ request.app.url_path_for('static', path='js/redeem.js') }}"></script>
+    <script src="{{ request.app.url_path_for('static', path='js/redeem.js') }}?v={{ static_version }}"></script>
     <script>
         if (window.lucide) lucide.createIcons();
     </script>

@@ -118,7 +118,9 @@
                         <a href="https://linux.do/u/{{ record.oauth_username }}/summary" target="_blank" rel="noreferrer" class="forum-user">
                             {% if record.oauth_avatar_template %}
                             {% set avatar_url = record.oauth_avatar_template.replace('{size}', '64') %}
-                            <img src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ record.oauth_username }}">
+                            <img src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ record.oauth_username }}" onerror="this.onerror=null;this.src='{{ request.app.url_path_for('static', path='img/default-avatar.svg') }}?v={{ static_version }}';">
+                            {% else %}
+                            <img src="{{ request.app.url_path_for('static', path='img/default-avatar.svg') }}?v={{ static_version }}" alt="{{ record.oauth_username }}">
                             {% endif %}
                             <span>{{ record.oauth_username }}</span>
                         </a>

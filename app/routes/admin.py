@@ -5,7 +5,8 @@
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
@@ -72,6 +73,7 @@ class CodeGenerateRequest(BaseModel):
 @router.get("/", response_class=HTMLResponse)
 async def admin_dashboard(
     request: Request,
+    page: int = 1,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
@@ -92,18 +94,26 @@ async def admin_dashboard(
 
         logger.info("管理员访问控制台")
 
-        # 获取所有 Team 列表
-        teams_result = await team_service.get_all_teams(db)
+        # 获取 Team 列表 (分页)
+        per_page = 20
+        teams_result = await team_service.get_all_teams(db, page=page, per_page=per_page)
         teams = teams_result.get("teams", [])
+        total_teams = teams_result.get("total", 0)
+        total_pages = teams_result.get("total_pages", 1)
+        current_page = teams_result.get("current_page", 1)
+
+        # 获取所有 Team 用于统计可用数量 (或者未来增加专门的统计接口)
+        all_teams_result = await team_service.get_all_teams(db, page=1, per_page=10000)
+        all_teams = all_teams_result.get("teams", [])
 
         # 获取兑换码统计
-        codes_result = await redemption_service.get_all_codes(db)
-        all_codes = codes_result.get("codes", [])
+        all_codes_result = await redemption_service.get_all_codes(db, page=1, per_page=10000)
+        all_codes = all_codes_result.get("codes", [])
 
         # 计算统计数据
         stats = {
-            "total_teams": len(teams),
-            "available_teams": len([t for t in teams if t["status"] == "active" and t["current_members"] < t["max_members"]]),
+            "total_teams": total_teams,
+            "available_teams": len([t for t in all_teams if t["status"] == "active" and t["current_members"] < t["max_members"]]),
             "total_codes": len(all_codes),
             "used_codes": len([c for c in all_codes if c["status"] == "used"])
         }
@@ -115,7 +125,13 @@ async def admin_dashboard(
                 "user": current_user,
                 "active_page": "dashboard",
                 "teams": teams,
-                "stats": stats
+                "stats": stats,
+                "pagination": {
+                    "current_page": current_page,
+                    "total_pages": total_pages,
+                    "total": total_teams,
+                    "per_page": per_page
+                }
             }
         )
 
@@ -217,7 +233,7 @@ async def team_import(
             return JSONResponse(content=result)
 
         elif import_data.import_type == "batch":
-            # 批量导入
+            # 批量导入使用 StreamingResponse
             if not import_data.content:
                 return JSONResponse(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -227,12 +243,17 @@ async def team_import(
                     }
                 )
 
-            result = await team_service.import_team_batch(
-                text=import_data.content,
-                db_session=db
-            )
+            async def progress_generator():
+                async for status in team_service.import_team_batch(
+                    text=import_data.content,
+                    db_session=db
+                ):
+                    yield json.dumps(status, ensure_ascii=False) + "\n"
 
-            return JSONResponse(content=result)
+            return StreamingResponse(
+                progress_generator(),
+                media_type="application/x-ndjson"
+            )
 
         else:
             return JSONResponse(
@@ -563,6 +584,8 @@ async def revoke_team_invite(
 @router.get("/codes", response_class=HTMLResponse)
 async def codes_list_page(
     request: Request,
+    page: int = 1,
+    search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
@@ -571,6 +594,8 @@ async def codes_list_page(
 
     Args:
         request: FastAPI Request 对象
+        page: 页码
+        search: 搜索关键词
         db: 数据库会话
         current_user: 当前用户（需要登录）
 
@@ -580,15 +605,24 @@ async def codes_list_page(
     try:
         from app.main import templates
 
-        logger.info("管理员访问兑换码列表页面")
+        logger.info(f"管理员访问兑换码列表页面, search={search}")
 
-        # 获取所有兑换码
-        codes_result = await redemption_service.get_all_codes(db)
-        all_codes = codes_result.get("codes", [])
+        # 获取兑换码 (分页)
+        per_page = 50
+        codes_result = await redemption_service.get_all_codes(db, page=page, per_page=per_page, search=search)
+        codes = codes_result.get("codes", [])
+        total_codes = codes_result.get("total", 0)
+        total_pages = codes_result.get("total_pages", 1)
+        current_page = codes_result.get("current_page", 1)
+
+        # 为了统计数据，我们需要获取所有统计（或者增加统计接口）
+        # 这里暂时获取全部用于统计
+        all_codes_result = await redemption_service.get_all_codes(db, page=1, per_page=10000)
+        all_codes = all_codes_result.get("codes", [])
 
         # 计算统计数据
         stats = {
-            "total": len(all_codes),
+            "total": total_codes,
             "unused": len([c for c in all_codes if c["status"] == "unused"]),
             "used": len([c for c in all_codes if c["status"] == "used"]),
             "expired": len([c for c in all_codes if c["status"] == "expired"])
@@ -596,7 +630,7 @@ async def codes_list_page(
 
         # 格式化日期时间
         from datetime import datetime
-        for code in all_codes:
+        for code in codes:
             if code.get("created_at"):
                 dt = datetime.fromisoformat(code["created_at"])
                 code["created_at"] = dt.strftime("%Y-%m-%d %H:%M")
@@ -613,8 +647,15 @@ async def codes_list_page(
                 "request": request,
                 "user": current_user,
                 "active_page": "codes",
-                "codes": all_codes,
-                "stats": stats
+                "codes": codes,
+                "stats": stats,
+                "search": search,
+                "pagination": {
+                    "current_page": current_page,
+                    "total_pages": total_pages,
+                    "total": total_codes,
+                    "per_page": per_page
+                }
             }
         )
 
@@ -791,6 +832,7 @@ async def bulk_delete_codes(
 
 @router.get("/codes/export")
 async def export_codes(
+    search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
@@ -798,6 +840,7 @@ async def export_codes(
     导出兑换码为Excel文件
 
     Args:
+        search: 搜索关键词
         db: 数据库会话
         current_user: 当前用户（需要登录）
 
@@ -812,9 +855,11 @@ async def export_codes(
 
         logger.info("管理员导出兑换码为Excel")
 
-        # 获取所有兑换码
-        codes_result = await redemption_service.get_all_codes(db)
+        # 获取所有兑换码 (导出不分页，传入大数量)
+        codes_result = await redemption_service.get_all_codes(db, page=1, per_page=100000, search=search)
         all_codes = codes_result.get("codes", [])
+        
+        # 结果可能带统计信息，我们只取 codes
 
         # 创建Excel文件到内存
         output = BytesIO()

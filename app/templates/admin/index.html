@@ -137,6 +137,27 @@
             </tbody>
         </table>
     </div>
+
+    <!-- 分页 -->
+    {% if pagination.total_pages > 1 %}
+    <div class="pagination">
+        {% if pagination.current_page > 1 %}
+        <a href="?page=1" class="btn btn-sm btn-secondary">首页</a>
+        <a href="?page={{ pagination.current_page - 1 }}" class="btn btn-sm btn-secondary">
+            <i data-lucide="chevron-left" style="width: 14px; height: 14px;"></i>
+        </a>
+        {% endif %}
+
+        <span class="pagination-info">第 {{ pagination.current_page }} / {{ pagination.total_pages }} 页</span>
+
+        {% if pagination.current_page < pagination.total_pages %} <a href="?page={{ pagination.current_page + 1 }}"
+            class="btn btn-sm btn-secondary">
+            <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
+            </a>
+            <a href="?page={{ pagination.total_pages }}" class="btn btn-sm btn-secondary">末页</a>
+            {% endif %}
+    </div>
+    {% endif %}
     {% else %}
     <div class="empty-state">
         <p>暂无 Team 数据</p>
@@ -175,6 +196,25 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+        padding: 1rem;
+    }
+
+    .pagination-info {
+        margin: 0 1rem;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}

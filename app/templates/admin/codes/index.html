@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}兑换码管理 - GPT Team 管理系统{% endblock %}
+{% block title %}CDK管理 - GPT Team 管理系统{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h2>兑换码管理</h2>
+    <h2>CDK管理</h2>
 </div>
 
 <!-- 统计卡片 -->
@@ -42,11 +42,27 @@
 <!-- 操作栏 -->
 <div class="section-header toolbar">
     <div>
-        <div class="filter-buttons">
-            <button onclick="filterByStatus('all')" class="btn btn-sm btn-secondary active" id="filter-all">全部</button>
-            <button onclick="filterByStatus('unused')" class="btn btn-sm btn-success" id="filter-unused">未使用</button>
-            <button onclick="filterByStatus('used')" class="btn btn-sm btn-info" id="filter-used">已使用</button>
-            <button onclick="filterByStatus('expired')" class="btn btn-sm btn-danger" id="filter-expired">已过期</button>
+        <div class="filter-and-search">
+            <div class="filter-buttons">
+                <button onclick="filterByStatus('all')" class="btn btn-sm btn-secondary active" id="filter-all">全部</button>
+                <button onclick="filterByStatus('unused')" class="btn btn-sm btn-success" id="filter-unused">未使用</button>
+                <button onclick="filterByStatus('used')" class="btn btn-sm btn-info" id="filter-used">已使用</button>
+                <button onclick="filterByStatus('expired')" class="btn btn-sm btn-danger" id="filter-expired">已过期</button>
+            </div>
+
+            <form action="{{ admin_path }}/codes" method="get" class="search-form">
+                <div class="search-input-group">
+                    <input type="text" name="search" value="{{ search or '' }}" placeholder="搜索兑换码或邮箱..." class="btn-sm">
+                    <button type="submit" class="btn btn-sm btn-secondary">
+                        <i data-lucide="search" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    {% if search %}
+                    <a href="{{ admin_path }}/codes" class="btn btn-sm btn-danger" title="清除搜索">
+                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
         </div>
         <div class="selection-count" id="codeSelectionCount">已选择 0 项</div>
     </div>
@@ -106,7 +122,9 @@
                         <a href="https://linux.do/u/{{ code.oauth_username }}/summary" target="_blank" rel="noreferrer" class="forum-user">
                             {% if code.oauth_avatar_template %}
                             {% set avatar_url = code.oauth_avatar_template.replace('{size}', '64') %}
-                            <img src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ code.oauth_username }}">
+                            <img src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ code.oauth_username }}" onerror="this.onerror=null;this.src='{{ request.app.url_path_for('static', path='img/default-avatar.svg') }}?v={{ static_version }}';">
+                            {% else %}
+                            <img src="{{ request.app.url_path_for('static', path='img/default-avatar.svg') }}?v={{ static_version }}" alt="{{ code.oauth_username }}">
                             {% endif %}
                             <span>{{ code.oauth_username }}</span>
                         </a>
@@ -132,6 +150,29 @@
             </tbody>
         </table>
     </div>
+
+    <!-- 分页 -->
+    {% if pagination.total_pages > 1 %}
+    <div class="pagination">
+        {% set search_param = '&search=' + search if search else '' %}
+
+        {% if pagination.current_page > 1 %}
+        <a href="?page=1{{ search_param }}" class="btn btn-sm btn-secondary">首页</a>
+        <a href="?page={{ pagination.current_page - 1 }}{{ search_param }}" class="btn btn-sm btn-secondary">
+            <i data-lucide="chevron-left" style="width: 14px; height: 14px;"></i>
+        </a>
+        {% endif %}
+
+        <span class="pagination-info">第 {{ pagination.current_page }} / {{ pagination.total_pages }} 页</span>
+
+        {% if pagination.current_page < pagination.total_pages %} <a
+            href="?page={{ pagination.current_page + 1 }}{{ search_param }}" class="btn btn-sm btn-secondary">
+            <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
+            </a>
+            <a href="?page={{ pagination.total_pages }}{{ search_param }}" class="btn btn-sm btn-secondary">末页</a>
+            {% endif %}
+    </div>
+    {% endif %}
     {% else %}
     <div class="empty-state">
         <i data-lucide="package-open" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.2;"></i>
@@ -140,6 +181,95 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-and-search {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .section-header.toolbar {
+        align-items: center;
+    }
+
+    .section-header.toolbar .action-buttons {
+        margin-left: auto;
+    }
+
+    .search-input-group {
+        display: flex;
+        align-items: center;
+        background: rgba(6, 10, 18, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        padding: 6px;
+        min-width: 320px;
+        gap: 6px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    }
+
+    .search-input-group input {
+        border: none;
+        background: transparent;
+        padding: 0.45rem 0.9rem;
+        outline: none;
+        color: var(--text-main);
+        min-width: 220px;
+        font-size: 0.9rem;
+    }
+
+    .search-input-group .btn {
+        padding: 0.45rem 0.65rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-main);
+        transition: all 0.2s ease;
+        margin-left: auto;
+    }
+
+    .data-table .action-buttons {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        flex-wrap: nowrap;
+    }
+
+    .search-input-group .btn:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .search-input-group input::placeholder {
+        color: var(--text-muted);
+        opacity: 0.65;
+    }
+
+    .search-input-group:focus-within {
+        border-color: rgba(34, 193, 184, 0.55);
+        box-shadow: 0 0 0 3px rgba(34, 193, 184, 0.18);
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+        padding: 1rem;
+    }
+
+    .pagination-info {
+        margin: 0 1rem;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -288,7 +418,11 @@
     // 导出兑换码
     async function exportCodes() {
         try {
-            const response = await fetch('{{ admin_path }}/codes/export');
+            const urlParams = new URLSearchParams(window.location.search);
+            const search = urlParams.get('search') || '';
+            const exportUrl = `{{ admin_path }}/codes/export${search ? '?search=' + encodeURIComponent(search) : ''}`;
+
+            const response = await fetch(exportUrl);
 
             if (response.ok) {
                 const blob = await response.blob();
