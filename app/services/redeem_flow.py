@@ -148,7 +148,8 @@ class RedeemFlowService:
         email: str,
         code: str,
         team_id: Optional[int],
-        db_session: AsyncSession
+        db_session: AsyncSession,
+        oauth_user: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         完整的兑换流程 (带事务和并发控制)
@@ -244,7 +245,9 @@ class RedeemFlowService:
                         email=email,
                         code=code,
                         team_id=team_id_final,
-                        account_id=final_team_account_id
+                        account_id=final_team_account_id,
+                        oauth_username=(oauth_user or {}).get("username"),
+                        oauth_avatar_template=(oauth_user or {}).get("avatar_template")
                     )
                     db_session.add(redemption_record)
                 

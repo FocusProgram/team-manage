@@ -198,6 +198,23 @@ body::before {
     font-size: 0.9rem;
     color: var(--text-main);
     border: 1px solid rgba(34, 193, 184, 0.2);
+    text-decoration: none;
+}
+
+.oauth-user-badge:hover {
+    color: var(--accent);
+    border-color: rgba(34, 193, 184, 0.35);
+}
+
+.oauth-avatar {
+    width: 26px;
+    height: 26px;
+    max-width: 26px;
+    max-height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: 0 0 26px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .oauth-card {

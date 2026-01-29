@@ -578,6 +578,11 @@ async function handleAddMember(event) {
 }
 
 async function deleteMember(teamId, userId, email, inModal = false) {
+    if (!userId || userId === 'null') {
+        showToast('该成员还未加入，请使用“撤回”邀请', 'error');
+        return;
+    }
+
     if (!confirm(`确定要删除成员 "${email}" 吗?\n\n此操作不可恢复!`)) {
         return;
     }

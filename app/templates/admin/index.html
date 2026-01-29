@@ -42,10 +42,21 @@
 <!-- Team 列表 -->
 <div class="content-section">
     <div class="section-header">
-        <h3>Team 列表</h3>
-        <button onclick="showModal('importTeamModal')" class="btn btn-primary">
-            <i data-lucide="plus-circle"></i> 导入 Team
-        </button>
+        <div>
+            <h3>Team 列表</h3>
+            <div class="selection-count" id="teamSelectionCount">已选择 0 项</div>
+        </div>
+        <div class="section-actions">
+            <button onclick="refreshAllTeams()" class="btn btn-secondary">
+                <i data-lucide="refresh-cw"></i> 一键刷新
+            </button>
+            <button onclick="bulkDeleteTeams()" class="btn btn-danger" id="bulkDeleteBtn" disabled>
+                <i data-lucide="trash-2"></i> 批量删除
+            </button>
+            <button onclick="showModal('importTeamModal')" class="btn btn-primary">
+                <i data-lucide="plus-circle"></i> 导入 Team
+            </button>
+        </div>
     </div>
 
     {% if teams %}
@@ -53,6 +64,9 @@
         <table class="data-table">
             <thead>
                 <tr>
+                    <th class="table-check">
+                        <input type="checkbox" id="selectAllTeams" aria-label="全选 Team">
+                    </th>
                     <th>ID</th>
                     <th>邮箱</th>
                     <th>Account ID</th>
@@ -67,6 +81,9 @@
             <tbody>
                 {% for team in teams %}
                 <tr>
+                    <td class="table-check">
+                        <input type="checkbox" class="team-select" value="{{ team.id }}" aria-label="选择 Team {{ team.id }}">
+                    </td>
                     <td><span class="text-muted">{{ team.id }}</span></td>
                     <td>{{ team.email }}</td>
                     <td><span class="text-muted small">{{ team.account_id or '-' }}</span></td>
@@ -98,10 +115,13 @@
                         </span>
                     </td>
                     <td>
-                        <div class="action-buttons">
+                        <div class="action-buttons row-actions">
                             <button onclick="viewMembers({{ team.id }}, '{{ team.email }}')" class="btn btn-sm btn-info"
                                 title="查看成员">
                                 <i data-lucide="users"></i> 成员
+                            </button>
+                            <button onclick="openEditTeam({{ team.id }}, '{{ team.email|escape_js }}', '{{ team.account_id|escape_js }}')" class="btn btn-sm btn-secondary" title="编辑">
+                                <i data-lucide="pencil"></i> 编辑
                             </button>
                             <button onclick="refreshTeam({{ team.id }})" class="btn btn-sm btn-secondary" title="刷新">
                                 <i data-lucide="refresh-cw"></i> 刷新
@@ -124,10 +144,196 @@
     </div>
     {% endif %}
 </div>
+
+<!-- 编辑 Team 模态框 -->
+<div id="editTeamModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>编辑 Team</h3>
+            <button class="modal-close" onclick="hideModal('editTeamModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="editTeamForm" onsubmit="submitEditTeam(event)">
+                <input type="hidden" id="editTeamId">
+                <div class="form-group">
+                    <label for="editTeamEmail">邮箱</label>
+                    <input type="email" id="editTeamEmail" class="form-control" placeholder="admin@example.com">
+                    <small class="form-text">可选，留空则保持不变</small>
+                </div>
+                <div class="form-group">
+                    <label for="editTeamAccountId">Account ID</label>
+                    <input type="text" id="editTeamAccountId" class="form-control" placeholder="留空自动选择">
+                    <small class="form-text">可选，切换 Team 账户时填写</small>
+                </div>
+                <div class="form-group">
+                    <label for="editTeamToken">更换 AT (Access Token)</label>
+                    <textarea id="editTeamToken" class="form-control" rows="4" placeholder="粘贴新的 AT Token"></textarea>
+                    <small class="form-text">可选，更换 AT 后会自动同步 Team 信息</small>
+                </div>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    function getSelectedTeamIds() {
+        return Array.from(document.querySelectorAll('.team-select:checked')).map((input) => Number(input.value));
+    }
+
+    function updateBulkActionState() {
+        const selected = getSelectedTeamIds();
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+        const selectionCount = document.getElementById('teamSelectionCount');
+        const selectAll = document.getElementById('selectAllTeams');
+        const total = document.querySelectorAll('.team-select').length;
+
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.disabled = selected.length === 0;
+        }
+
+        if (selectionCount) {
+            selectionCount.textContent = `已选择 ${selected.length} 项`;
+        }
+
+        if (selectAll) {
+            selectAll.checked = selected.length > 0 && selected.length === total;
+            selectAll.indeterminate = selected.length > 0 && selected.length < total;
+        }
+    }
+
+    function bindTeamSelection() {
+        const selectAll = document.getElementById('selectAllTeams');
+        const checkboxes = document.querySelectorAll('.team-select');
+
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = selectAll.checked;
+                });
+                updateBulkActionState();
+            });
+        }
+
+        checkboxes.forEach((checkbox) => {
+            checkbox.addEventListener('change', updateBulkActionState);
+        });
+
+        updateBulkActionState();
+    }
+
+    async function bulkDeleteTeams() {
+        const teamIds = getSelectedTeamIds();
+        if (teamIds.length === 0) {
+            showToast('请先选择要删除的 Team', 'error');
+            return;
+        }
+
+        if (!confirm(`确定要删除所选的 ${teamIds.length} 个 Team 吗?\n\n此操作不可恢复!`)) {
+            return;
+        }
+
+        try {
+            showToast('正在批量删除...', 'info');
+            const response = await fetch(`{{ admin_path }}/teams/bulk-delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ team_ids: teamIds })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast(`已删除 ${data.success_count || teamIds.length} 个 Team`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                const successCount = data.success_count || 0;
+                if (successCount > 0) {
+                    showToast(`部分删除成功 (${successCount}/${teamIds.length})，请刷新查看`, 'info');
+                } else {
+                    showToast(data.error || '批量删除失败', 'error');
+                }
+            }
+        } catch (error) {
+            showToast('网络错误', 'error');
+        }
+    }
+
+    async function refreshAllTeams() {
+        if (!confirm('确定要一键刷新所有 Team 吗?')) {
+            return;
+        }
+
+        try {
+            showToast('正在刷新全部 Team...', 'info');
+            const response = await fetch(`{{ admin_path }}/teams/refresh-all`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast('刷新成功', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error || '一键刷新失败', 'error');
+            }
+        } catch (error) {
+            showToast('网络错误', 'error');
+        }
+    }
+
+    function openEditTeam(teamId, email, accountId) {
+        document.getElementById('editTeamId').value = teamId;
+        document.getElementById('editTeamEmail').value = email || '';
+        document.getElementById('editTeamAccountId').value = accountId || '';
+        document.getElementById('editTeamToken').value = '';
+        showModal('editTeamModal');
+    }
+
+    async function submitEditTeam(event) {
+        event.preventDefault();
+        const teamId = document.getElementById('editTeamId').value;
+        const email = document.getElementById('editTeamEmail').value.trim();
+        const accountId = document.getElementById('editTeamAccountId').value.trim();
+        const accessToken = document.getElementById('editTeamToken').value.trim();
+
+        if (!email && !accountId && !accessToken) {
+            showToast('请填写至少一项需要更新的内容', 'error');
+            return;
+        }
+
+        try {
+            showToast('正在保存...', 'info');
+            const response = await fetch(`{{ admin_path }}/teams/${teamId}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email || null,
+                    account_id: accountId || null,
+                    access_token: accessToken || null
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast('更新成功', 'success');
+                hideModal('editTeamModal');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error || '更新失败', 'error');
+            }
+        } catch (error) {
+            showToast('网络错误', 'error');
+        }
+    }
 
     async function refreshTeam(teamId) {
         if (!confirm('确定要刷新此 Team 的信息吗?')) {
@@ -176,5 +382,7 @@
             showToast('网络错误', 'error');
         }
     }
+
+    document.addEventListener('DOMContentLoaded', bindTeamSelection);
 </script>
 {% endblock %}

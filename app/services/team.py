@@ -9,7 +9,7 @@ from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Team, TeamAccount
+from app.models import Team, TeamAccount, RedemptionRecord, RedemptionCode
 from app.services.chatgpt import ChatGPTService
 from app.services.encryption import encryption_service
 from app.utils.token_parser import TokenParser
@@ -604,8 +604,9 @@ class TeamService:
             
             # 处理已加入成员
             for m in members_result["members"]:
+                user_id = m.get("user_id") or m.get("id") or (m.get("user") or {}).get("id")
                 all_members.append({
-                    "user_id": m.get("user_id"),
+                    "user_id": user_id,
                     "email": m.get("email"),
                     "name": m.get("name"),
                     "role": m.get("role"),
@@ -1225,6 +1226,158 @@ class TeamService:
                 "error": f"更新 Team 失败: {str(e)}"
             }
 
+    async def update_team_access_token(
+        self,
+        team_id: int,
+        access_token: str,
+        db_session: AsyncSession,
+        email: Optional[str] = None,
+        account_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        更新 Team 的 AT，并同步 Team 信息
+
+        Args:
+            team_id: Team ID
+            access_token: 新 AT
+            db_session: 数据库会话
+            email: 新邮箱 (可选)
+            account_id: 指定 account_id (可选)
+
+        Returns:
+            结果字典,包含 success, message, error
+        """
+        try:
+            stmt = select(Team).where(Team.id == team_id)
+            result = await db_session.execute(stmt)
+            team = result.scalar_one_or_none()
+
+            if not team:
+                return {
+                    "success": False,
+                    "message": None,
+                    "error": f"Team ID {team_id} 不存在"
+                }
+
+            # 更新邮箱
+            if email:
+                team.email = email
+            else:
+                token_email = self.jwt_parser.extract_email(access_token)
+                if token_email:
+                    team.email = token_email
+
+            # 校验并获取账户信息
+            account_result = await self.chatgpt_service.get_account_info(
+                access_token,
+                db_session
+            )
+
+            if not account_result["success"]:
+                return {
+                    "success": False,
+                    "message": None,
+                    "error": f"获取账户信息失败: {account_result['error']}"
+                }
+
+            team_accounts = account_result["accounts"]
+            if not team_accounts:
+                return {
+                    "success": False,
+                    "message": None,
+                    "error": "该 Token 没有关联任何 Team 账户"
+                }
+
+            # 选择 account
+            selected_account = None
+            if account_id:
+                for acc in team_accounts:
+                    if acc["account_id"] == account_id:
+                        selected_account = acc
+                        break
+                if not selected_account:
+                    return {
+                        "success": False,
+                        "message": None,
+                        "error": f"指定的 account_id {account_id} 不存在"
+                    }
+            else:
+                for acc in team_accounts:
+                    if acc["has_active_subscription"]:
+                        selected_account = acc
+                        break
+                if not selected_account:
+                    selected_account = team_accounts[0]
+
+            # 更新 AT
+            team.access_token_encrypted = encryption_service.encrypt_token(access_token)
+
+            # 重建 TeamAccount 列表
+            await db_session.execute(
+                delete(TeamAccount).where(TeamAccount.team_id == team_id)
+            )
+            for acc in team_accounts:
+                db_session.add(TeamAccount(
+                    team_id=team_id,
+                    account_id=acc["account_id"],
+                    account_name=acc["name"],
+                    is_primary=(acc["account_id"] == selected_account["account_id"])
+                ))
+
+            # 获取成员信息
+            members_result = await self.chatgpt_service.get_members(
+                access_token,
+                selected_account["account_id"],
+                db_session
+            )
+            current_members = members_result["total"] if members_result["success"] else 0
+
+            # 解析过期时间
+            expires_at = None
+            if selected_account.get("expires_at"):
+                try:
+                    expires_at = datetime.fromisoformat(
+                        selected_account["expires_at"].replace("+00:00", "")
+                    )
+                except Exception as e:
+                    logger.warning(f"解析过期时间失败: {e}")
+
+            # 状态判断
+            status = "active"
+            if current_members >= team.max_members:
+                status = "full"
+            elif expires_at and expires_at < datetime.now():
+                status = "expired"
+
+            # 更新 Team 信息
+            team.account_id = selected_account["account_id"]
+            team.team_name = selected_account.get("name")
+            team.plan_type = selected_account.get("plan_type")
+            team.subscription_plan = selected_account.get("subscription_plan")
+            team.expires_at = expires_at
+            team.current_members = current_members
+            team.status = status
+            team.last_sync = get_now()
+
+            await db_session.commit()
+
+            logger.info(f"更新 Team {team_id} AT 成功")
+
+            return {
+                "success": True,
+                "message": "AT 已更新并完成同步",
+                "error": None
+            }
+
+        except Exception as e:
+            await db_session.rollback()
+            logger.error(f"更新 Team AT 失败: {e}")
+            return {
+                "success": False,
+                "message": None,
+                "error": f"更新 AT 失败: {str(e)}"
+            }
+
     async def delete_team(
         self,
         team_id: int,
@@ -1253,7 +1406,17 @@ class TeamService:
                     "error": f"Team ID {team_id} 不存在"
                 }
 
-            # 2. 删除 Team (级联删除 team_accounts 和 redemption_records)
+            # 2. 清理关联数据，避免外键约束冲突
+            await db_session.execute(
+                delete(RedemptionRecord).where(RedemptionRecord.team_id == team_id)
+            )
+            await db_session.execute(
+                update(RedemptionCode)
+                .where(RedemptionCode.used_team_id == team_id)
+                .values(used_team_id=None)
+            )
+
+            # 3. 删除 Team (team_accounts 会级联删除)
             await db_session.delete(team)
             await db_session.commit()
 

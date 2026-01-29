@@ -41,13 +41,17 @@
 
 <!-- 操作栏 -->
 <div class="section-header toolbar">
-    <div class="filter-buttons">
-        <button onclick="filterByStatus('all')" class="btn btn-sm btn-secondary active" id="filter-all">全部</button>
-        <button onclick="filterByStatus('unused')" class="btn btn-sm btn-success" id="filter-unused">未使用</button>
-        <button onclick="filterByStatus('used')" class="btn btn-sm btn-info" id="filter-used">已使用</button>
-        <button onclick="filterByStatus('expired')" class="btn btn-sm btn-danger" id="filter-expired">已过期</button>
+    <div>
+        <div class="filter-buttons">
+            <button onclick="filterByStatus('all')" class="btn btn-sm btn-secondary active" id="filter-all">全部</button>
+            <button onclick="filterByStatus('unused')" class="btn btn-sm btn-success" id="filter-unused">未使用</button>
+            <button onclick="filterByStatus('used')" class="btn btn-sm btn-info" id="filter-used">已使用</button>
+            <button onclick="filterByStatus('expired')" class="btn btn-sm btn-danger" id="filter-expired">已过期</button>
+        </div>
+        <div class="selection-count" id="codeSelectionCount">已选择 0 项</div>
     </div>
     <div class="action-buttons">
+        <button onclick="bulkDeleteCodes()" class="btn btn-danger" id="bulkDeleteCodesBtn" disabled>批量删除</button>
         <button onclick="showModal('generateCodeModal')" class="btn btn-primary">生成兑换码</button>
         <button onclick="exportCodes()" class="btn btn-secondary">导出兑换码</button>
     </div>
@@ -60,11 +64,15 @@
         <table class="data-table">
             <thead>
                 <tr>
+                    <th class="table-check">
+                        <input type="checkbox" id="selectAllCodes" aria-label="全选兑换码">
+                    </th>
                     <th>兑换码</th>
                     <th>状态</th>
                     <th>创建时间</th>
                     <th>过期时间</th>
                     <th>使用者邮箱</th>
+                    <th>论坛用户</th>
                     <th>使用时间</th>
                     <th style="text-align: right;">操作</th>
                 </tr>
@@ -72,6 +80,9 @@
             <tbody id="codesTableBody">
                 {% for code in codes %}
                 <tr data-status="{{ code.status }}">
+                    <td class="table-check">
+                        <input type="checkbox" class="code-select" value="{{ code.code }}" aria-label="选择兑换码 {{ code.code }}">
+                    </td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <i data-lucide="ticket" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
@@ -90,6 +101,19 @@
                     <td>{{ code.created_at }}</td>
                     <td>{{ code.expires_at if code.expires_at else '永久有效' }}</td>
                     <td>{{ code.used_by_email if code.used_by_email else '-' }}</td>
+                    <td>
+                        {% if code.oauth_username %}
+                        <a href="https://linux.do/u/{{ code.oauth_username }}/summary" target="_blank" rel="noreferrer" class="forum-user">
+                            {% if code.oauth_avatar_template %}
+                            {% set avatar_url = code.oauth_avatar_template.replace('{size}', '64') %}
+                            <img src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ code.oauth_username }}">
+                            {% endif %}
+                            <span>{{ code.oauth_username }}</span>
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                     <td>{{ code.used_at if code.used_at else '-' }}</td>
                     <td style="text-align: right;">
                         <div class="action-buttons" style="justify-content: flex-end;">
@@ -123,6 +147,51 @@
     // 当前筛选状态
     let currentFilter = 'all';
 
+    function getSelectedCodes() {
+        return Array.from(document.querySelectorAll('.code-select:checked')).map((input) => input.value);
+    }
+
+    function updateBulkState() {
+        const selected = getSelectedCodes();
+        const bulkDeleteBtn = document.getElementById('bulkDeleteCodesBtn');
+        const selectionCount = document.getElementById('codeSelectionCount');
+        const selectAll = document.getElementById('selectAllCodes');
+        const total = document.querySelectorAll('.code-select').length;
+
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.disabled = selected.length === 0;
+        }
+
+        if (selectionCount) {
+            selectionCount.textContent = `已选择 ${selected.length} 项`;
+        }
+
+        if (selectAll) {
+            selectAll.checked = selected.length > 0 && selected.length === total;
+            selectAll.indeterminate = selected.length > 0 && selected.length < total;
+        }
+    }
+
+    function bindCodeSelection() {
+        const selectAll = document.getElementById('selectAllCodes');
+        const checkboxes = document.querySelectorAll('.code-select');
+
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                checkboxes.forEach((checkbox) => {
+                    checkbox.checked = selectAll.checked;
+                });
+                updateBulkState();
+            });
+        }
+
+        checkboxes.forEach((checkbox) => {
+            checkbox.addEventListener('change', updateBulkState);
+        });
+
+        updateBulkState();
+    }
+
     // 按状态筛选
     function filterByStatus(status) {
         currentFilter = status;
@@ -143,6 +212,46 @@
                 row.style.display = 'none';
             }
         });
+    }
+
+    async function bulkDeleteCodes() {
+        const codes = getSelectedCodes();
+        if (codes.length === 0) {
+            showToast('请先选择要删除的兑换码', 'error');
+            return;
+        }
+
+        if (!confirm(`确定要删除所选的 ${codes.length} 个兑换码吗?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`{{ admin_path }}/codes/bulk-delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ codes })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast(`已删除 ${result.success_count || codes.length} 个兑换码`, 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                const successCount = result.success_count || 0;
+                if (successCount > 0) {
+                    showToast(`部分删除成功 (${successCount}/${codes.length})，请刷新查看`, 'info');
+                } else {
+                    showToast(result.error || '批量删除失败', 'error');
+                }
+            }
+        } catch (error) {
+            showToast('网络错误', 'error');
+        }
     }
 
     // 删除兑换码
@@ -199,5 +308,7 @@
             showToast('网络错误', 'error');
         }
     }
+
+    document.addEventListener('DOMContentLoaded', bindCodeSelection);
 </script>
 {% endblock %}

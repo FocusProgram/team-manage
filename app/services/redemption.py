@@ -391,13 +391,15 @@ class RedemptionService:
             结果字典,包含 success, codes, total, error
         """
         try:
-            stmt = select(RedemptionCode).order_by(RedemptionCode.created_at.desc())
+            stmt = select(RedemptionCode, RedemptionRecord).outerjoin(
+                RedemptionRecord, RedemptionRecord.code == RedemptionCode.code
+            ).order_by(RedemptionCode.created_at.desc())
             result = await db_session.execute(stmt)
-            codes = result.scalars().all()
+            codes = result.all()
 
             # 构建返回数据
             code_list = []
-            for code in codes:
+            for code, record in codes:
                 code_list.append({
                     "id": code.id,
                     "code": code.code,
@@ -406,7 +408,9 @@ class RedemptionService:
                     "expires_at": code.expires_at.isoformat() if code.expires_at else None,
                     "used_by_email": code.used_by_email,
                     "used_team_id": code.used_team_id,
-                    "used_at": code.used_at.isoformat() if code.used_at else None
+                    "used_at": code.used_at.isoformat() if code.used_at else None,
+                    "oauth_username": record.oauth_username if record else None,
+                    "oauth_avatar_template": record.oauth_avatar_template if record else None
                 })
 
             logger.info(f"获取所有兑换码成功: 共 {len(code_list)} 个")
@@ -575,7 +579,9 @@ class RedemptionService:
                     "code": record.code,
                     "team_id": record.team_id,
                     "account_id": record.account_id,
-                    "redeemed_at": record.redeemed_at.isoformat() if record.redeemed_at else None
+                    "redeemed_at": record.redeemed_at.isoformat() if record.redeemed_at else None,
+                    "oauth_username": record.oauth_username,
+                    "oauth_avatar_template": record.oauth_avatar_template
                 })
 
             logger.info(f"获取所有兑换记录成功: 共 {len(record_list)} 条")

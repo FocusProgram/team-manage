@@ -48,6 +48,17 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.execute(text("PRAGMA journal_mode=WAL"))
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_redemption_record_oauth_columns(conn)
+
+
+async def _ensure_redemption_record_oauth_columns(conn):
+    result = await conn.execute(text("PRAGMA table_info(redemption_records)"))
+    existing = {row[1] for row in result.fetchall()}
+
+    if "oauth_username" not in existing:
+        await conn.execute(text("ALTER TABLE redemption_records ADD COLUMN oauth_username VARCHAR(255)"))
+    if "oauth_avatar_template" not in existing:
+        await conn.execute(text("ALTER TABLE redemption_records ADD COLUMN oauth_avatar_template VARCHAR(255)"))
 
 
 async def close_db():

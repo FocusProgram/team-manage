@@ -139,7 +139,8 @@ async def confirm_redeem(
             request.email,
             request.code,
             request.team_id,
-            db
+            db,
+            http_request.session.get("oauth_user")
         )
 
         if not result["success"]:

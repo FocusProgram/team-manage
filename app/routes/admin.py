@@ -44,6 +44,23 @@ class AddMemberRequest(BaseModel):
     email: str = Field(..., description="成员邮箱")
 
 
+class UpdateTeamRequest(BaseModel):
+    """更新 Team 请求"""
+    email: Optional[str] = Field(None, description="邮箱")
+    access_token: Optional[str] = Field(None, description="AT Token")
+    account_id: Optional[str] = Field(None, description="Account ID (可选)")
+
+
+class TeamBulkActionRequest(BaseModel):
+    """Team 批量操作请求"""
+    team_ids: list[int] = Field(..., description="Team ID 列表")
+
+
+class CodeBulkActionRequest(BaseModel):
+    """兑换码批量操作请求"""
+    codes: list[str] = Field(..., description="兑换码列表")
+
+
 class CodeGenerateRequest(BaseModel):
     """兑换码生成请求"""
     type: str = Field(..., description="生成类型: single 或 batch")
@@ -339,6 +356,15 @@ async def delete_team_member(
         删除结果
     """
     try:
+        if not user_id or user_id == "null":
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "success": False,
+                    "error": "无效的用户 ID，邀请中的成员请使用撤回操作"
+                }
+            )
+
         logger.info(f"管理员从 Team {team_id} 删除成员: {user_id}")
 
         result = await team_service.delete_team_member(
@@ -363,6 +389,125 @@ async def delete_team_member(
                 "success": False,
                 "error": f"删除成员失败: {str(e)}"
             }
+        )
+
+
+@router.post("/teams/{team_id}/update")
+async def update_team(
+    team_id: int,
+    team_data: UpdateTeamRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """
+    更新 Team 信息/AT
+    """
+    try:
+        if not team_data.email and not team_data.access_token and not team_data.account_id:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "success": False,
+                    "error": "请填写至少一项需要更新的内容"
+                }
+            )
+
+        if team_data.access_token:
+            result = await team_service.update_team_access_token(
+                team_id=team_id,
+                access_token=team_data.access_token,
+                db_session=db,
+                email=team_data.email,
+                account_id=team_data.account_id
+            )
+        else:
+            result = await team_service.update_team(
+                team_id=team_id,
+                db_session=db,
+                email=team_data.email,
+                account_id=team_data.account_id
+            )
+
+        if not result["success"]:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content=result
+            )
+
+        return JSONResponse(content=result)
+
+    except Exception as e:
+        logger.error(f"更新 Team 失败: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "success": False,
+                "error": f"更新 Team 失败: {str(e)}"
+            }
+        )
+
+
+@router.post("/teams/bulk-delete")
+async def bulk_delete_teams(
+    payload: TeamBulkActionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """
+    批量删除 Team
+    """
+    try:
+        team_ids = [tid for tid in payload.team_ids if isinstance(tid, int)]
+        if not team_ids:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"success": False, "error": "请选择要删除的 Team"}
+            )
+
+        results = []
+        success_count = 0
+        for team_id in team_ids:
+            result = await team_service.delete_team(team_id, db)
+            results.append({"team_id": team_id, **result})
+            if result.get("success"):
+                success_count += 1
+
+        return JSONResponse(content={
+            "success": success_count == len(team_ids),
+            "success_count": success_count,
+            "total": len(team_ids),
+            "results": results
+        })
+
+    except Exception as e:
+        logger.error(f"批量删除 Team 失败: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "error": f"批量删除失败: {str(e)}"}
+        )
+
+
+@router.post("/teams/refresh-all")
+async def refresh_all_teams(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """
+    一键刷新所有 Team
+    """
+    try:
+        result = await team_service.sync_all_teams(db)
+        if not result.get("success"):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content=result
+            )
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"一键刷新 Team 失败: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "error": f"一键刷新失败: {str(e)}"}
         )
 
 
@@ -602,6 +747,45 @@ async def delete_code(
                 "success": False,
                 "error": f"删除失败: {str(e)}"
             }
+        )
+
+
+@router.post("/codes/bulk-delete")
+async def bulk_delete_codes(
+    payload: CodeBulkActionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """
+    批量删除兑换码
+    """
+    try:
+        codes = [c for c in payload.codes if isinstance(c, str) and c.strip()]
+        if not codes:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"success": False, "error": "请选择要删除的兑换码"}
+            )
+
+        results = []
+        success_count = 0
+        for code in codes:
+            result = await redemption_service.delete_code(code, db)
+            results.append({"code": code, **result})
+            if result.get("success"):
+                success_count += 1
+
+        return JSONResponse(content={
+            "success": success_count == len(codes),
+            "success_count": success_count,
+            "total": len(codes),
+            "results": results
+        })
+    except Exception as e:
+        logger.error(f"批量删除兑换码失败: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "error": f"批量删除失败: {str(e)}"}
         )
 
 
@@ -1034,4 +1218,3 @@ async def update_log_level(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "error": f"更新失败: {str(e)}"}
         )
-

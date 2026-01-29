@@ -100,6 +100,7 @@
                 <tr>
                     <th>ID</th>
                     <th>用户邮箱</th>
+                    <th>论坛用户</th>
                     <th>兑换码</th>
                     <th>Team名称</th>
                     <th>Team ID</th>
@@ -112,6 +113,19 @@
                 <tr>
                     <td><span class="text-muted">{{ record.id }}</span></td>
                     <td><strong>{{ record.email }}</strong></td>
+                    <td>
+                        {% if record.oauth_username %}
+                        <a href="https://linux.do/u/{{ record.oauth_username }}/summary" target="_blank" rel="noreferrer" class="forum-user">
+                            {% if record.oauth_avatar_template %}
+                            {% set avatar_url = record.oauth_avatar_template.replace('{size}', '64') %}
+                            <img src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ record.oauth_username }}">
+                            {% endif %}
+                            <span>{{ record.oauth_username }}</span>
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                     <td><code>{{ record.code }}</code></td>
                     <td>{{ record.team_name or '-' }}</td>
                     <td><span class="badge badge-secondary">{{ record.team_id }}</span></td>

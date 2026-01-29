@@ -34,10 +34,14 @@
             {% endif %}
             {% if oauth_user %}
             <div class="oauth-actions">
-                <div class="oauth-user-badge">
+                <a href="https://linux.do/u/{{ oauth_user.username }}/summary" target="_blank" rel="noreferrer" class="oauth-user-badge">
                     <i data-lucide="shield-check"></i>
+                    {% if oauth_user.avatar_template %}
+                    {% set avatar_url = oauth_user.avatar_template.replace('{size}', '64') %}
+                    <img class="oauth-avatar" src="{% if avatar_url.startswith('http') %}{{ avatar_url }}{% else %}https://linux.do{{ avatar_url }}{% endif %}" alt="{{ oauth_user.username or oauth_user.name }}">
+                    {% endif %}
                     已验证：{{ oauth_user.username or oauth_user.name }}
-                </div>
+                </a>
                 <a href="/auth/linuxdo/logout" class="btn btn-secondary btn-sm">
                     <i data-lucide="log-out"></i> 退出
                 </a>
