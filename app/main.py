@@ -93,6 +93,7 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 templates.env.globals["admin_path"] = settings.admin_path_normalized
 templates.env.globals["admin_login_path"] = settings.admin_login_path_normalized
+templates.env.globals["static_version"] = int(datetime.utcnow().timestamp())
 
 # 添加模板过滤器
 def format_datetime(dt):
